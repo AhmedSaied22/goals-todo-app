@@ -7,100 +7,102 @@ import type { Goal } from "@/types";
 import { Timestamp } from "firebase/firestore";
 
 export function useGoals() {
-  const { user } = useAuth();
+    const { user } = useAuth();
 
-  return useQuery({
-    queryKey: ["goals", user?.uid],
-    queryFn: () => getGoals(user!.uid),
-    enabled: !!user,
+    return useQuery({
+        queryKey: ["goals", user?.uid],
+        queryFn: () => getGoals(user!.uid),
+        enabled: !!user,
 
-    // Performance-friendly defaults
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+        // Performance-friendly defaults
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
 
-    // Data sanitization (prevents NaN issues in UI/charts)
-    select: (goals) =>
-      goals.map((goal) => ({
-        ...goal,
-        currentPercent: Number.isFinite(goal.currentPercent) ? goal.currentPercent : 0,
-      })),
-  });
+        // Data sanitization (prevents NaN issues in UI/charts)
+        select: (goals) =>
+            goals.map((goal) => ({
+                ...goal,
+                currentPercent: Number.isFinite(goal.currentPercent) ? goal.currentPercent : 0,
+            })),
+    });
 }
 
 export function useAddGoal() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (title: string) => addGoal(user!.uid, title),
-    onMutate: async (newTitle) => {
-      await queryClient.cancelQueries({ queryKey: ["goals", user?.uid] });
+    return useMutation({
+        mutationFn: (title: string) => addGoal(user!.uid, title),
+        onMutate: async (newTitle) => {
+            await queryClient.cancelQueries({ queryKey: ["goals", user?.uid] });
 
-      const previousGoals = queryClient.getQueryData<Goal[]>(["goals", user?.uid]);
-      const tempId = crypto.randomUUID();
+            const previousGoals = queryClient.getQueryData<Goal[]>(["goals", user?.uid]);
+            const tempId = crypto.randomUUID();
 
-      queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) => {
-        const newGoal: Goal = {
-          id: tempId,
-          title: newTitle,
-          currentPercent: 0,
-          createdAt: Timestamp.now(),
-        };
-        return old ? [newGoal, ...old] : [newGoal];
-      });
+            queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) => {
+                const newGoal: Goal = {
+                    id: tempId,
+                    title: newTitle,
+                    currentPercent: 0,
+                    createdAt: Timestamp.now(),
+                };
+                return old ? [newGoal, ...old] : [newGoal];
+            });
 
-      return { previousGoals, tempId };
-    },
-    onError: (_err, _newTitle, context) => {
-      if (context?.previousGoals) {
-        queryClient.setQueryData(["goals", user?.uid], context.previousGoals);
-      }
-      toast.error("Failed to create goal");
-    },
-    onSuccess: (goalId, _newTitle, context) => {
-      if (context?.tempId) {
-        queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) =>
-          old?.map((goal) => (goal.id === context.tempId ? { ...goal, id: goalId } : goal))
-        );
-      }
-      toast.success("Goal created successfully!");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
-    },
-  });
+            return { previousGoals, tempId };
+        },
+        onError: (err, _newTitle, context) => {
+            console.error("Error creating goal:", err); // Log the full error
+            if (context?.previousGoals) {
+                queryClient.setQueryData(["goals", user?.uid], context.previousGoals);
+            }
+            toast.error(`Failed to create goal: ${(err as Error).message}`);
+        },
+        onSuccess: (goalId, _newTitle, context) => {
+            if (context?.tempId) {
+                queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) =>
+                    old?.map((goal) => (goal.id === context.tempId ? { ...goal, id: goalId } : goal))
+                );
+            }
+            toast.success("Goal created successfully!");
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
+        },
+    });
 }
 
 export function useDeleteGoal() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (goalId: string) => deleteGoal(user!.uid, goalId),
-    onMutate: async (goalId) => {
-      await queryClient.cancelQueries({ queryKey: ["goals", user?.uid] });
+    return useMutation({
+        mutationFn: (goalId: string) => deleteGoal(user!.uid, goalId),
+        onMutate: async (goalId) => {
+            await queryClient.cancelQueries({ queryKey: ["goals", user?.uid] });
 
-      const previousGoals = queryClient.getQueryData<Goal[]>(["goals", user?.uid]);
+            const previousGoals = queryClient.getQueryData<Goal[]>(["goals", user?.uid]);
 
-      queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) =>
-        old?.filter((goal) => goal.id !== goalId)
-      );
+            queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) =>
+                old?.filter((goal) => goal.id !== goalId)
+            );
 
-      return { previousGoals };
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previousGoals) {
-        queryClient.setQueryData(["goals", user?.uid], context.previousGoals);
-      }
-      toast.error("Failed to delete goal");
-    },
-    onSuccess: () => {
-      toast.success("Goal deleted");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
-    },
-  });
+            return { previousGoals };
+        },
+        onError: (err, _variables, context) => {
+            console.error("Error deleting goal:", err); // Log the full error
+            if (context?.previousGoals) {
+                queryClient.setQueryData(["goals", user?.uid], context.previousGoals);
+            }
+            toast.error(`Failed to delete goal: ${(err as Error).message}`);
+        },
+        onSuccess: () => {
+            toast.success("Goal deleted");
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
+        },
+    });
 }

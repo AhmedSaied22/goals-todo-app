@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -49,13 +50,29 @@ export function TodosPage() {
   const [addMode, setAddMode] = useState<"quick" | "bulk">("quick");
   const [bulkText, setBulkText] = useState("");
 
+  const [recentlyCompletedIds, setRecentlyCompletedIds] = useState<Set<string>>(new Set());
+
   const { data: todos, isLoading: todosLoading } = useTodos();
   const { data: goals } = useGoals();
+  const query = useQueryClient();
+
+  // Reset recently completed when filter changes
+  useEffect(() => {
+    setRecentlyCompletedIds(new Set());
+  }, [filter]);
 
   const addTodo = useAddTodo();
   const addTodosBulk = useAddTodosBulk();
   const toggleTodo = useToggleTodo();
   const deleteTodo = useDeleteTodo();
+
+  const handleToggleTodo = (todo: Todo) => {
+    // If we are in "Pending" view and marking as done, add to generic keep-alive list
+    if (filter === "pending" && !todo.isDone) {
+      setRecentlyCompletedIds((prev) => new Set(prev).add(todo.id));
+    }
+    toggleTodo.mutate({ todoId: todo.id, isDone: !todo.isDone });
+  };
 
   const {
     register,
@@ -99,6 +116,11 @@ export function TodosPage() {
     return todos.filter((todo) => {
       if (selectedGoalId !== "all" && todo.goalId !== selectedGoalId) return false;
 
+      // Ensure recently completed items stay visible in "Pending" tab
+      if (filter === "pending" && recentlyCompletedIds.has(todo.id)) {
+        return true;
+      }
+
       switch (filter) {
         case "today":
           return todo.createdAt && isToday(todo.createdAt.toDate());
@@ -110,7 +132,7 @@ export function TodosPage() {
           return true;
       }
     });
-  }, [todos, filter, selectedGoalId]);
+  }, [todos, filter, selectedGoalId, recentlyCompletedIds]);
 
   // ✅ Fix merge conflict: these counts are used in the Tabs UI
   const { pendingCount, doneCount, todayCount } = useMemo(() => {
@@ -195,8 +217,8 @@ export function TodosPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => toggleTodo.mutate({ todoId: todo.id, isDone: !todo.isDone })}
-                disabled={isToggling}
+                onClick={() => !isToggling && handleToggleTodo(todo)}
+                className={cn(isToggling && "opacity-50 cursor-not-allowed")}
               >
                 {todo.isDone ? "Undo" : "Mark done"}
               </Button>
@@ -205,9 +227,11 @@ export function TodosPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 transition-all"
-                onClick={() => deleteTodo.mutate(todo.id)}
-                disabled={isDeleting}
+                className={cn(
+                  "text-destructive hover:text-destructive hover:bg-destructive/10 transition-all",
+                  isDeleting && "opacity-50 cursor-not-allowed"
+                )}
+                onClick={() => !isDeleting && deleteTodo.mutate(todo.id)}
                 aria-label="Delete todo"
               >
                 <Trash2 className="w-4 h-4" />
@@ -300,7 +324,7 @@ export function TodosPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-2">
-              <Link as={LinkIcon} />
+
               <LinkIcon className="w-4 h-4 text-muted-foreground" />
 
               <Select value={newTodoGoalId} onValueChange={setNewTodoGoalId}>
@@ -392,18 +416,18 @@ export function TodosPage() {
                   {filter === "all"
                     ? "No todos yet"
                     : filter === "today"
-                    ? "No todos for today"
-                    : filter === "done"
-                    ? "No completed todos"
-                    : "No pending todos"}
+                      ? "No todos for today"
+                      : filter === "done"
+                        ? "No completed todos"
+                        : "No pending todos"}
                 </h3>
 
                 <p className="text-muted-foreground">
                   {filter === "all" || filter === "pending"
                     ? "Add a new todo to get started!"
                     : filter === "done"
-                    ? "Complete some todos to see them here."
-                    : "Create todos today to see them here."}
+                      ? "Complete some todos to see them here."
+                      : "Create todos today to see them here."}
                 </p>
               </div>
             </Card>
