@@ -19,6 +19,10 @@ export function useTodos() {
         queryKey: ["todos", user?.uid],
         queryFn: () => getTodos(user!.uid),
         enabled: !!user,
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
     });
 }
 

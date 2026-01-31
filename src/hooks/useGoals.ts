@@ -18,6 +18,10 @@ export function useGoals() {
         queryKey: ["goals", user?.uid],
         queryFn: () => getGoals(user!.uid),
         enabled: !!user,
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
     });
 }
 

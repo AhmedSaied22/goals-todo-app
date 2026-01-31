@@ -48,8 +48,8 @@ export function GoalsPage() {
         resolver: zodResolver(goalSchema),
     });
 
-    const onSubmit = async (data: GoalForm) => {
-        await addGoal.mutateAsync(data.title);
+    const onSubmit = (data: GoalForm) => {
+        addGoal.mutate(data.title);
         reset();
         setIsOpen(false);
     };

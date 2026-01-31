@@ -59,8 +59,8 @@ export function TodosPage() {
         resolver: zodResolver(todoSchema),
     });
 
-    const onSubmit = async (data: TodoForm) => {
-        await addTodo.mutateAsync({
+    const onSubmit = (data: TodoForm) => {
+        addTodo.mutate({
             title: data.title,
             goalId: selectedGoalId === "no-goal" || !selectedGoalId ? undefined : selectedGoalId,
         });
