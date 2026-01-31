@@ -9,12 +9,14 @@ import {
     Moon,
     Sun,
     LogOut,
+    Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
 
 const navItems = [
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -27,6 +29,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     const { user, logout } = useAuth();
     const { theme, setTheme } = useTheme();
     const location = useLocation();
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     return (
         <div className="flex flex-col h-full">
@@ -92,28 +95,39 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
                 {/* User Info */}
                 {user && (
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/50">
-                        {user.photoURL ? (
-                            <img
-                                src={user.photoURL}
-                                alt={user.displayName || "User"}
-                                className="w-10 h-10 rounded-full ring-2 ring-primary/20"
-                            />
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                                <span className="text-primary font-medium">
-                                    {user.displayName?.[0] || user.email?.[0] || "U"}
-                                </span>
+                    <div className="relative group">
+                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/50 group-hover:bg-muted transition-colors">
+                            {user.photoURL ? (
+                                <img
+                                    src={user.photoURL}
+                                    alt={user.displayName || "User"}
+                                    className="w-10 h-10 rounded-full ring-2 ring-primary/20 object-cover"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                    <span className="text-primary font-medium">
+                                        {user.displayName?.[0] || user.email?.[0] || "U"}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                    {user.displayName || "User"}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                    {user.email}
+                                </p>
                             </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                                {user.displayName || "User"}
-                            </p>
-                            <p className="text-xs text-muted-foreground truncate">
-                                {user.email}
-                            </p>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => setIsProfileOpen(true)}
+                            >
+                                <Settings className="w-4 h-4" />
+                            </Button>
                         </div>
+                        <ProfileSettings open={isProfileOpen} onOpenChange={setIsProfileOpen} />
                     </div>
                 )}
 

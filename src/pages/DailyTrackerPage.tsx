@@ -9,7 +9,7 @@ import {
     subDays,
 } from "date-fns";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CalendarDays, ChevronLeft, ChevronRight, Trash2, Plus, X, Clock } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Trash2, Plus, X } from "lucide-react";
 import {
     Button,
     Card,
@@ -21,8 +21,6 @@ import {
     SelectTrigger,
     SelectValue,
     Skeleton,
-    SelectGroup,
-    SelectLabel,
 } from "@/components/ui";
 import {
     useActivities,
@@ -172,11 +170,11 @@ export function DailyTrackerPage() {
             const weekday = parseISO(log.date).getDay();
             acc[weekday] += log.durationMinutes;
             return acc;
-        }, Array.from({ length: 7 }).fill(0));
+        }, Array(7).fill(0) as number[]);
     }, [reportLogs]);
 
     const bestWeekdayIndex = weekdayTotals.reduce(
-        (bestIndex, value, index, arr) => (value > arr[bestIndex] ? index : bestIndex),
+        (bestIndex: number, value: number, index: number, arr: number[]) => (value > arr[bestIndex] ? index : bestIndex),
         0
     );
 
@@ -528,17 +526,17 @@ export function DailyTrackerPage() {
                                                 width={32}
                                             />
                                             <Tooltip
-                                                cursor={{ fill: "hsl(var(--muted))" }}
+                                                cursor={{ fill: "var(--color-muted)" }}
                                                 contentStyle={{
                                                     borderRadius: "0.75rem",
-                                                    borderColor: "hsl(var(--border))",
-                                                    backgroundColor: "hsl(var(--card))",
-                                                    color: "hsl(var(--card-foreground))",
+                                                    borderColor: "var(--color-border)",
+                                                    backgroundColor: "var(--color-card)",
+                                                    color: "var(--color-card-foreground)",
                                                 }}
                                             />
                                             <Bar
                                                 dataKey="totalMinutes"
-                                                fill="hsl(var(--primary))"
+                                                fill="var(--color-primary)"
                                                 radius={[6, 6, 0, 0]}
                                             />
                                         </BarChart>

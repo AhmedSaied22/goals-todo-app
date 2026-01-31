@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -54,7 +53,6 @@ export function TodosPage() {
 
   const { data: todos, isLoading: todosLoading } = useTodos();
   const { data: goals } = useGoals();
-  const query = useQueryClient();
 
   // Reset recently completed when filter changes
   useEffect(() => {

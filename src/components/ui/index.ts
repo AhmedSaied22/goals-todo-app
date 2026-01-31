@@ -6,3 +6,4 @@ export * from "./Dialog";
 export * from "./Tabs";
 export * from "./Select";
 export * from "./Skeleton";
+export * from "./Label";

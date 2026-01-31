@@ -143,7 +143,7 @@ export function useAddTodosBulk() {
       queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) => {
         if (!old) return old;
         return old.map((todo) => {
-          const tempIndex = context.tempIds.indexOf(todo.id);
+          const tempIndex = context.tempIds.indexOf(todo.id as any);
           if (tempIndex === -1) return todo;
           return { ...todo, id: todoIds[tempIndex] };
         });

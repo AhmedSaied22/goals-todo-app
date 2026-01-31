@@ -225,7 +225,9 @@ export function DashboardPage() {
                                                 backgroundColor: "var(--color-card)",
                                                 border: "1px solid var(--color-border)",
                                                 borderRadius: "8px",
+                                                color: "var(--color-card-foreground)",
                                             }}
+                                            itemStyle={{ color: "var(--color-card-foreground)" }}
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -276,8 +278,10 @@ export function DashboardPage() {
                                                 backgroundColor: "var(--color-card)",
                                                 border: "1px solid var(--color-border)",
                                                 borderRadius: "8px",
+                                                color: "var(--color-card-foreground)",
                                             }}
-                                            formatter={(value: number) => [`${value}%`, "Progress"]}
+                                            itemStyle={{ color: "var(--color-card-foreground)" }}
+                                            formatter={(value: any) => [`${value}%`, "Progress"]}
                                         />
                                         <Bar
                                             dataKey="progress"

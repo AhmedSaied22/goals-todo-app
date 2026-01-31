@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Timestamp } from "firebase/firestore";
-import type { Activity, DailyLog } from "@/types";
+import type { DailyLog } from "@/types";
 
 export function useActivities() {
     const { user } = useAuth();
