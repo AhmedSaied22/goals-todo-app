@@ -10,6 +10,7 @@ import {
     Square,
     Link as LinkIcon,
     Filter,
+    X,
 } from "lucide-react";
 import {
     useTodos,
@@ -49,7 +50,8 @@ type FilterType = "all" | "today" | "done" | "pending";
 
 export function TodosPage() {
     const [filter, setFilter] = useState<FilterType>("all");
-    const [selectedGoalId, setSelectedGoalId] = useState<string>("");
+    const [selectedGoalId, setSelectedGoalId] = useState<string>("all");
+    const [newTodoGoalId, setNewTodoGoalId] = useState<string>("");
     const [addMode, setAddMode] = useState<"quick" | "bulk">("quick");
     const [bulkText, setBulkText] = useState("");
 
@@ -72,10 +74,10 @@ export function TodosPage() {
     const onSubmit = (data: TodoForm) => {
         addTodo.mutate({
             title: data.title,
-            goalId: selectedGoalId === "no-goal" || !selectedGoalId ? undefined : selectedGoalId,
+            goalId: newTodoGoalId === "no-goal" || !newTodoGoalId ? undefined : newTodoGoalId,
         });
         reset();
-        setSelectedGoalId("");
+        setNewTodoGoalId("");
     };
 
     const onBulkSubmit = () => {
@@ -87,16 +89,19 @@ export function TodosPage() {
 
         addTodosBulk.mutate({
             titles,
-            goalId: selectedGoalId === "no-goal" || !selectedGoalId ? undefined : selectedGoalId,
+            goalId: newTodoGoalId === "no-goal" || !newTodoGoalId ? undefined : newTodoGoalId,
         });
         setBulkText("");
-        setSelectedGoalId("");
+        setNewTodoGoalId("");
     };
 
     const filteredTodos = useMemo(() => {
         if (!todos) return [];
 
         return todos.filter((todo) => {
+            if (selectedGoalId !== "all" && todo.goalId !== selectedGoalId) {
+                return false;
+            }
             switch (filter) {
                 case "today":
                     return todo.createdAt && isToday(todo.createdAt.toDate());
@@ -108,13 +113,29 @@ export function TodosPage() {
                     return true;
             }
         });
-    }, [todos, filter]);
+    }, [todos, filter, selectedGoalId]);
 
-    const getGoalName = (goalId?: string) => {
-        if (!goalId || !goals) return null;
-        const goal = goals.find((g) => g.id === goalId);
-        return goal?.title;
-    };
+    const { pendingCount, doneCount, todayCount } = useMemo(() => {
+        if (!todos) {
+            return { pendingCount: 0, doneCount: 0, todayCount: 0 };
+        }
+
+        return {
+            pendingCount: todos.filter((t) => !t.isDone).length,
+            doneCount: todos.filter((t) => t.isDone).length,
+            todayCount: todos.filter(
+                (t) => t.createdAt && isToday(t.createdAt.toDate())
+            ).length,
+        };
+    }, [todos]);
+
+    const goalTitleMap = useMemo(() => {
+        if (!goals) return {};
+        return goals.reduce<Record<string, string>>((acc, goal) => {
+            acc[goal.id] = goal.title;
+            return acc;
+        }, {});
+    }, [goals]);
 
     const goalProgressMap = useMemo(() => {
         if (!goals || !todos) return {};
@@ -122,7 +143,7 @@ export function TodosPage() {
     }, [goals, todos]);
 
     const TodoItem = ({ todo }: { todo: Todo }) => {
-        const goalName = getGoalName(todo.goalId);
+        const goalName = todo.goalId ? goalTitleMap[todo.goalId] : undefined;
         const isDeleting = deleteTodo.isPending && deleteTodo.variables === todo.id;
         const isToggling =
             toggleTodo.isPending && toggleTodo.variables?.todoId === todo.id;
@@ -161,12 +182,9 @@ export function TodosPage() {
                         {todo.title}
                     </p>
                     <div className="flex items-center gap-3 mt-1">
-                        {goalName && (
-                            <span className="inline-flex items-center gap-1 text-xs text-primary">
-                                <LinkIcon className="w-3 h-3" />
-                                {goalName}
-                            </span>
-                        )}
+                        <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground">
+                            {goalName ?? "No goal"}
+                        </span>
                         {todo.createdAt && (
                             <span className="text-xs text-muted-foreground">
                                 {format(todo.createdAt.toDate(), "MMM d, h:mm a")}
@@ -205,20 +223,6 @@ export function TodosPage() {
             </div>
         );
     }
-
-    const { pendingCount, doneCount, todayCount } = useMemo(() => {
-        if (!todos) {
-            return { pendingCount: 0, doneCount: 0, todayCount: 0 };
-        }
-
-        return {
-            pendingCount: todos.filter((t) => !t.isDone).length,
-            doneCount: todos.filter((t) => t.isDone).length,
-            todayCount: todos.filter(
-                (t) => t.createdAt && isToday(t.createdAt.toDate())
-            ).length,
-        };
-    }, [todos]);
 
     return (
         <div className="space-y-8">
@@ -299,7 +303,7 @@ export function TodosPage() {
                         )}
                         <div className="flex flex-wrap items-center gap-2">
                             <LinkIcon className="w-4 h-4 text-muted-foreground" />
-                            <Select value={selectedGoalId} onValueChange={setSelectedGoalId}>
+                            <Select value={newTodoGoalId} onValueChange={setNewTodoGoalId}>
                                 <SelectTrigger className="w-64">
                                     <SelectValue placeholder="Link to a goal (optional)" />
                                 </SelectTrigger>
@@ -313,7 +317,7 @@ export function TodosPage() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            {selectedGoalId && (
+                            {newTodoGoalId && (
                                 <span className="text-xs text-muted-foreground">
                                     Progress updates from linked todos
                                 </span>
@@ -342,6 +346,33 @@ export function TodosPage() {
                 </TabsList>
 
                 <TabsContent value={filter} className="mt-6">
+                    <div className="flex flex-wrap items-center gap-2 pb-2">
+                        <span className="text-sm font-medium text-foreground">Goals</span>
+                        <Select value={selectedGoalId} onValueChange={setSelectedGoalId}>
+                            <SelectTrigger className="w-56">
+                                <SelectValue placeholder="All goals" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All goals</SelectItem>
+                                {goals?.map((goal) => (
+                                    <SelectItem key={goal.id} value={goal.id}>
+                                        {goal.title}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setSelectedGoalId("all")}
+                            disabled={selectedGoalId === "all"}
+                            aria-label="Clear goal filter"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
                     {filteredTodos.length > 0 ? (
                         <div className="space-y-3">
                             {filteredTodos.map((todo) => (

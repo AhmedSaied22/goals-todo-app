@@ -15,6 +15,23 @@ export interface Todo {
     createdAt: Timestamp;
 }
 
+export interface Activity {
+    id: string;
+    name: string;
+    color?: string;
+    createdAt: Timestamp;
+}
+
+export interface DailyLog {
+    id: string;
+    activityId: string;
+    activityName: string;
+    date: string;
+    durationMinutes: number;
+    notes?: string;
+    createdAt: Timestamp;
+}
+
 export interface User {
     uid: string;
     email: string | null;
