@@ -139,6 +139,15 @@ export async function getActivities(uid: string): Promise<Activity[]> {
     })) as Activity[];
 }
 
+export async function addActivity(uid: string, name: string): Promise<string> {
+    const activitiesRef = collection(db, "users", uid, "activities");
+    const docRef = await addDoc(activitiesRef, {
+        name,
+        createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+}
+
 export async function getDailyLogs(
     uid: string,
     startDate: string,

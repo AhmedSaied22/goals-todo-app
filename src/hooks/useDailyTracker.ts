@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, endOfMonth, startOfMonth } from "date-fns";
 import {
     addDailyLog,
+    addActivity,
     deleteDailyLog,
     getActivities,
     getDailyLogs,
@@ -23,6 +24,22 @@ export function useActivities() {
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
+    });
+}
+
+export function useAddActivity() {
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (name: string) => addActivity(user!.uid, name),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["activities"] });
+            toast.success("Activity added");
+        },
+        onError: () => {
+            toast.error("Failed to add activity");
+        },
     });
 }
 

@@ -9,7 +9,7 @@ import {
     subDays,
 } from "date-fns";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CalendarDays, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Trash2, Plus, X, Clock } from "lucide-react";
 import {
     Button,
     Card,
@@ -21,9 +21,12 @@ import {
     SelectTrigger,
     SelectValue,
     Skeleton,
+    SelectGroup,
+    SelectLabel,
 } from "@/components/ui";
 import {
     useActivities,
+    useAddActivity,
     useAddDailyLog,
     useDailyLogs,
     useDeleteDailyLog,
@@ -31,6 +34,12 @@ import {
 } from "@/hooks/useDailyTracker";
 import { cn } from "@/lib/utils";
 import type { DailyLog } from "@/types";
+
+const PRESET_ACTIVITIES = [
+    { category: "Learning & Career", items: ["English Study", "Playwright Practice", "Automation Testing", "Manual Testing", "ISTQB Study", "Coding Practice", "Interview Prep", "Reading / Course"] },
+    { category: "Work & Productivity", items: ["Deep Work", "Project Work", "Bug Fixing", "Documentation", "Planning"] },
+    { category: "Health & Lifestyle", items: ["Workout", "Walking", "Meditation", "Sleep"] },
+];
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -42,13 +51,60 @@ export function DailyTrackerPage() {
     const [notes, setNotes] = useState("");
     const [month, setMonth] = useState(new Date());
 
+    // New state for enhanced UI
+    const [isCustomActivity, setIsCustomActivity] = useState(false);
+    const [customActivityName, setCustomActivityName] = useState("");
+
     const { data: activities, isLoading: activitiesLoading } = useActivities();
     const { data: dailyLogs, isLoading: logsLoading } = useDailyLogs({ month });
     const addDailyLog = useAddDailyLog();
+    const addActivity = useAddActivity();
     const deleteDailyLog = useDeleteDailyLog();
     const updateDailyLog = useUpdateDailyLog();
 
+    const handleCreateCustomActivity = async () => {
+        if (!customActivityName.trim()) return;
+        try {
+            const newId = await addActivity.mutateAsync(customActivityName.trim());
+            setIsCustomActivity(false);
+            setCustomActivityName("");
+            setSelectedActivityId(newId);
+        } catch (error) {
+            // Error handling done in hook
+        }
+    };
+
+    const handleActivityChange = async (value: string) => {
+        if (value === "custom_new") {
+            setIsCustomActivity(true);
+            return;
+        }
+
+        if (value.startsWith("preset:")) {
+            const presetName = value.split(":")[1];
+            try {
+                // Check if user already has this activity (by name) just in case
+                const existing = activities?.find(a => a.name === presetName);
+                if (existing) {
+                    setSelectedActivityId(existing.id);
+                } else {
+                    // Create it on the fly
+                    const newId = await addActivity.mutateAsync(presetName);
+                    setSelectedActivityId(newId);
+                }
+            } catch (e) {
+                console.error("Failed to create preset activity", e);
+            }
+        } else {
+            setSelectedActivityId(value);
+        }
+    };
+
     useEffect(() => {
+        // Only select default if nothing is selected AND we have activities
+        // User asked for "Last selection" memory, but for now let's just ensure we don't start empty if possible
+        // But if we want to show "Select activity" placeholder to prompt action, we might skip this.
+        // However, user said "Dropdown default activity automatically first time".
         if (!selectedActivityId && activities && activities.length > 0) {
             setSelectedActivityId(activities[0].id);
         }
@@ -150,7 +206,10 @@ export function DailyTrackerPage() {
             durationMinutes: minutes,
             notes: notes.trim() || undefined,
         });
-        setDurationMinutes("");
+        // Keep activity selected ("Smart Feature: Remember last selection")
+        // setDurationMinutes(""); -> Optional: maybe keep duration too? User said "Same for duration".
+        // Let's decide to KEEP duration for now to be fast.
+        // setNotes(""); -> clearer to reset notes
         setNotes("");
         setSelectedDate(todayKey);
     };
@@ -172,67 +231,166 @@ export function DailyTrackerPage() {
                         <CalendarDays className="w-4 h-4" />
                         Add daily log
                     </div>
-                    <div className="grid gap-4 md:grid-cols-[1fr_180px_160px]">
+                    <div className="grid gap-6 md:grid-cols-[1fr_180px_160px]">
+                        {/* Activity Selection */}
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-foreground">
                                 Activity
                             </label>
-                            <Select
-                                value={selectedActivityId}
-                                onValueChange={setSelectedActivityId}
-                                disabled={!activities || activities.length === 0}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue
-                                        placeholder={
-                                            activities?.length ? "Select activity" : "No activities"
-                                        }
+
+                            {isCustomActivity ? (
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={customActivityName}
+                                        onChange={(e) => setCustomActivityName(e.target.value)}
+                                        placeholder="Enter activity name"
+                                        autoFocus
                                     />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {activities?.map((activity) => (
-                                        <SelectItem key={activity.id} value={activity.id}>
-                                            {activity.name}
+                                    <Button
+                                        size="icon"
+                                        onClick={handleCreateCustomActivity}
+                                        disabled={!customActivityName.trim() || addActivity.isPending}
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setIsCustomActivity(false)}
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Select
+                                    value={selectedActivityId}
+                                    onValueChange={handleActivityChange}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select or create activity" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-[300px]">
+                                        <SelectItem value="custom_new" className="text-primary font-medium focus:bg-primary/10 cursor-pointer">
+                                            <div className="flex items-center gap-2">
+                                                <Plus className="w-4 h-4" />
+                                                Create custom activity...
+                                            </div>
                                         </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+
+                                        {activities && activities.length > 0 && (
+                                            <>
+                                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
+                                                    Your Activities
+                                                </div>
+                                                {activities.map((activity) => (
+                                                    <SelectItem key={activity.id} value={activity.id}>
+                                                        {activity.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </>
+                                        )}
+
+                                        {PRESET_ACTIVITIES.map((group) => (
+                                            <div key={group.category}>
+                                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2 border-t border-border">
+                                                    {group.category}
+                                                </div>
+                                                {group.items.map((item) => {
+                                                    // Hide if user already has this activity
+                                                    if (activities?.some((a) => a.name === item)) return null;
+                                                    return (
+                                                        <SelectItem key={item} value={`preset:${item}`}>
+                                                            {item}
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </div>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
+
+                        {/* Date Selection */}
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-foreground">Date</label>
+                            <label className="text-sm font-medium text-foreground flex justify-between">
+                                <span>Date</span>
+                                <div className="flex gap-1">
+                                    <button
+                                        onClick={() => setSelectedDate(todayKey)}
+                                        className="text-xs text-primary hover:underline font-medium"
+                                    >
+                                        Today
+                                    </button>
+                                    <span className="text-muted-foreground">/</span>
+                                    <button
+                                        onClick={() =>
+                                            setSelectedDate(
+                                                format(subDays(new Date(), 1), "yyyy-MM-dd")
+                                            )
+                                        }
+                                        className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                                    >
+                                        Yesterday
+                                    </button>
+                                </div>
+                            </label>
                             <Input
                                 type="date"
                                 value={selectedDate}
                                 onChange={(event) => setSelectedDate(event.target.value)}
                             />
                         </div>
+
+                        {/* Duration Selection */}
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-foreground">
-                                Duration (minutes)
+                            <label className="text-sm font-medium text-foreground flex justify-between items-center">
+                                <span>Duration (min)</span>
                             </label>
-                            <Input
-                                type="number"
-                                min={1}
-                                value={durationMinutes}
-                                onChange={(event) => setDurationMinutes(event.target.value)}
-                                placeholder="60"
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    value={durationMinutes}
+                                    onChange={(event) => setDurationMinutes(event.target.value)}
+                                    placeholder="e.g. 60"
+                                    className="flex-1"
+                                />
+                            </div>
+                            <div className="flex gap-1 justify-between">
+                                {[15, 30, 45, 60].map((m) => (
+                                    <button
+                                        key={m}
+                                        onClick={() => setDurationMinutes(String(m))}
+                                        className="text-[10px] px-2 py-1 rounded-md bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors"
+                                    >
+                                        +{m}m
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
+
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Notes</label>
+                        <label className="text-sm font-medium text-foreground">
+                            Notes <span className="text-muted-foreground font-normal">(optional)</span>
+                        </label>
                         <Input
                             value={notes}
                             onChange={(event) => setNotes(event.target.value)}
-                            placeholder="Optional notes"
+                            placeholder="What did you do?"
                         />
                     </div>
+
                     <div className="flex justify-end">
                         <Button
                             onClick={handleAddLog}
-                            disabled={addDailyLog.isPending || !selectedActivityId}
+                            disabled={
+                                addDailyLog.isPending || !selectedActivityId || !durationMinutes
+                            }
+                            className="w-full md:w-auto"
                         >
-                            Add
+                            Log Activity
                         </Button>
                     </div>
                 </CardContent>
@@ -374,6 +532,8 @@ export function DailyTrackerPage() {
                                                 contentStyle={{
                                                     borderRadius: "0.75rem",
                                                     borderColor: "hsl(var(--border))",
+                                                    backgroundColor: "hsl(var(--card))",
+                                                    color: "hsl(var(--card-foreground))",
                                                 }}
                                             />
                                             <Bar
