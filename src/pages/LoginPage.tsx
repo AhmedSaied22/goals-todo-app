@@ -29,7 +29,7 @@ export function LoginPage() {
                         <img
                             src="/milesto-logo.png"
                             alt="Milesto"
-                            className="w-32 h-32 rounded-2xl shadow-2xl object-contain"
+                            className="w-48 h-48 rounded-2xl shadow-2xl object-contain"
                         />
                         <div>
                             <h1 className="text-3xl font-bold">Milesto</h1>
@@ -70,7 +70,7 @@ export function LoginPage() {
                         <img
                             src="/milesto-logo.png"
                             alt="Milesto"
-                            className="w-20 h-20 rounded-xl shadow-lg object-contain"
+                            className="w-32 h-32 rounded-xl shadow-lg object-contain"
                         />
                         <h1 className="text-2xl font-bold gradient-text">Milesto</h1>
                     </div>
