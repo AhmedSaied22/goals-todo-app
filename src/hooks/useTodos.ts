@@ -5,12 +5,21 @@ import {
   addTodosBulk,
   toggleTodo,
   deleteTodo,
+  updateGoalProgress,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 import type { Todo } from "@/types";
 import { Timestamp } from "firebase/firestore";
+
+function calculateGoalPercent(todos: Todo[] | undefined, goalId?: string) {
+  if (!todos || !goalId) return null;
+  const goalTodos = todos.filter((todo) => todo.goalId === goalId);
+  if (goalTodos.length === 0) return 0;
+  const doneCount = goalTodos.filter((todo) => todo.isDone).length;
+  return Math.round((doneCount / goalTodos.length) * 100);
+}
 
 export function useTodos() {
   const { user } = useAuth();
@@ -70,12 +79,18 @@ export function useAddTodo() {
       toast.error("Failed to add todo");
     },
 
-    onSuccess: (todoId, _variables, context) => {
+    onSuccess: (todoId, variables, context) => {
       if (!context?.tempId) return;
 
       queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) =>
         old?.map((todo) => (todo.id === context.tempId ? { ...todo, id: todoId } : todo))
       );
+
+      const currentTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+      const percent = calculateGoalPercent(currentTodos, variables.goalId);
+      if (percent !== null && variables.goalId) {
+        void updateGoalProgress(user!.uid, variables.goalId, percent);
+      }
 
       toast.success("Todo added!");
     },
@@ -122,7 +137,7 @@ export function useAddTodosBulk() {
       toast.error("Failed to add todos");
     },
 
-    onSuccess: (todoIds, _variables, context) => {
+    onSuccess: (todoIds, variables, context) => {
       if (!context?.tempIds) return;
 
       queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) => {
@@ -133,6 +148,12 @@ export function useAddTodosBulk() {
           return { ...todo, id: todoIds[tempIndex] };
         });
       });
+
+      const currentTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+      const percent = calculateGoalPercent(currentTodos, variables.goalId);
+      if (percent !== null && variables.goalId) {
+        void updateGoalProgress(user!.uid, variables.goalId, percent);
+      }
 
       toast.success("Todos added!");
     },
@@ -164,6 +185,15 @@ export function useToggleTodo() {
       return { previousTodos };
     },
 
+    onSuccess: (_data, variables) => {
+      const currentTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+      const goalId = currentTodos?.find((todo) => todo.id === variables.todoId)?.goalId;
+      const percent = calculateGoalPercent(currentTodos, goalId);
+      if (percent !== null && goalId) {
+        void updateGoalProgress(user!.uid, goalId, percent);
+      }
+    },
+
     onError: (_err, _variables, context) => {
       if (context?.previousTodos) {
         queryClient.setQueryData(["todos", user?.uid], context.previousTodos);
@@ -188,12 +218,13 @@ export function useDeleteTodo() {
       await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
 
       const previousTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+      const deletedTodo = previousTodos?.find((todo) => todo.id === todoId);
 
       queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) =>
         old?.filter((todo) => todo.id !== todoId)
       );
 
-      return { previousTodos };
+      return { previousTodos, deletedTodo };
     },
 
     onError: (_err, _variables, context) => {
@@ -203,7 +234,13 @@ export function useDeleteTodo() {
       toast.error("Failed to delete todo");
     },
 
-    onSuccess: () => {
+    onSuccess: (_data, _variables, context) => {
+      const currentTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+      const goalId = context?.deletedTodo?.goalId;
+      const percent = calculateGoalPercent(currentTodos, goalId);
+      if (percent !== null && goalId) {
+        void updateGoalProgress(user!.uid, goalId, percent);
+      }
       toast.success("Todo deleted");
     },
 
