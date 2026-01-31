@@ -40,10 +40,11 @@ export function useAddGoal() {
         onMutate: async (newTitle) => {
             await queryClient.cancelQueries({ queryKey: ["goals", user?.uid] });
             const previousGoals = queryClient.getQueryData<Goal[]>(["goals", user?.uid]);
+            const tempId = crypto.randomUUID();
 
             queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) => {
                 const newGoal: Goal = {
-                    id: Math.random().toString(), // Temporarily ID
+                    id: tempId, // Temp ID
                     title: newTitle,
                     currentPercent: 0,
                     createdAt: Timestamp.now(),
@@ -51,7 +52,7 @@ export function useAddGoal() {
                 return old ? [newGoal, ...old] : [newGoal];
             });
 
-            return { previousGoals };
+            return { previousGoals, tempId };
         },
         onError: (_err, _newTitle, context) => {
             if (context?.previousGoals) {
@@ -59,11 +60,18 @@ export function useAddGoal() {
             }
             toast.error("Failed to create goal");
         },
+        onSuccess: (goalId, _newTitle, context) => {
+            if (context?.tempId) {
+                queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) =>
+                    old?.map((goal) =>
+                        goal.id === context.tempId ? { ...goal, id: goalId } : goal
+                    )
+                );
+            }
+            toast.success("Goal created successfully!");
+        },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
-        },
-        onSuccess: () => {
-            toast.success("Goal created successfully!");
         },
     });
 }

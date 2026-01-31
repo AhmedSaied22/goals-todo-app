@@ -206,9 +206,19 @@ export function TodosPage() {
         );
     }
 
-    const pendingCount = todos?.filter((t) => !t.isDone).length || 0;
-    const doneCount = todos?.filter((t) => t.isDone).length || 0;
-    const todayCount = todos?.filter((t) => t.createdAt && isToday(t.createdAt.toDate())).length || 0;
+    const { pendingCount, doneCount, todayCount } = useMemo(() => {
+        if (!todos) {
+            return { pendingCount: 0, doneCount: 0, todayCount: 0 };
+        }
+
+        return {
+            pendingCount: todos.filter((t) => !t.isDone).length,
+            doneCount: todos.filter((t) => t.isDone).length,
+            todayCount: todos.filter(
+                (t) => t.createdAt && isToday(t.createdAt.toDate())
+            ).length,
+        };
+    }, [todos]);
 
     return (
         <div className="space-y-8">

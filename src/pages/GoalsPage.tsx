@@ -35,8 +35,8 @@ type GoalForm = z.infer<typeof goalSchema>;
 
 export function GoalsPage() {
     const [isOpen, setIsOpen] = useState(false);
-    const { data: goals, isLoading } = useGoals();
-    const { data: todos } = useTodos();
+    const { data: goals, isLoading: goalsLoading } = useGoals();
+    const { data: todos, isLoading: todosLoading } = useTodos();
     const addGoal = useAddGoal();
     const deleteGoal = useDeleteGoal();
 
@@ -86,7 +86,7 @@ export function GoalsPage() {
         );
     };
 
-    if (isLoading) {
+    if (goalsLoading || todosLoading) {
         return (
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -201,7 +201,9 @@ export function GoalsPage() {
                                         size="icon"
                                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                         onClick={() => deleteGoal.mutate(goal.id)}
-                                        disabled={deleteGoal.isPending}
+                                        disabled={
+                                            deleteGoal.isPending && deleteGoal.variables === goal.id
+                                        }
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
