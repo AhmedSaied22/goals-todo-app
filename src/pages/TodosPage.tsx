@@ -62,7 +62,7 @@ export function TodosPage() {
     const onSubmit = async (data: TodoForm) => {
         await addTodo.mutateAsync({
             title: data.title,
-            goalId: selectedGoalId || undefined,
+            goalId: selectedGoalId === "no-goal" || !selectedGoalId ? undefined : selectedGoalId,
         });
         reset();
         setSelectedGoalId("");
@@ -213,7 +213,7 @@ export function TodosPage() {
                                     <SelectValue placeholder="Link to a goal (optional)" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">No goal</SelectItem>
+                                    <SelectItem value="no-goal">No goal</SelectItem>
                                     {goals?.map((goal) => (
                                         <SelectItem key={goal.id} value={goal.id}>
                                             {goal.title} ({goal.currentPercent}%)

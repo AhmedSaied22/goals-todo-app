@@ -9,6 +9,9 @@ import { updateGoalProgress, getGoals } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+import type { Todo } from "@/types";
+import { Timestamp } from "firebase/firestore";
+
 export function useTodos() {
     const { user } = useAuth();
 
@@ -26,12 +29,34 @@ export function useAddTodo() {
     return useMutation({
         mutationFn: ({ title, goalId }: { title: string; goalId?: string }) =>
             addTodo(user!.uid, title, goalId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["todos"] });
-            toast.success("Todo added!");
+        onMutate: async ({ title, goalId }) => {
+            await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
+            const previousTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+
+            queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) => {
+                const newTodo: Todo = {
+                    id: Math.random().toString(), // Temp ID
+                    title,
+                    isDone: false,
+                    goalId,
+                    createdAt: Timestamp.now(),
+                };
+                return old ? [newTodo, ...old] : [newTodo];
+            });
+
+            return { previousTodos };
         },
-        onError: () => {
+        onError: (_err, _variables, context) => {
+            if (context?.previousTodos) {
+                queryClient.setQueryData(["todos", user?.uid], context.previousTodos);
+            }
             toast.error("Failed to add todo");
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["todos", user?.uid] });
+        },
+        onSuccess: () => {
+            toast.success("Todo added!");
         },
     });
 }
@@ -62,12 +87,27 @@ export function useToggleTodo() {
                 }
             }
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["todos"] });
-            queryClient.invalidateQueries({ queryKey: ["goals"] });
+        onMutate: async ({ todoId, isDone }) => {
+            await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
+            const previousTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+
+            queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) =>
+                old?.map((todo) =>
+                    todo.id === todoId ? { ...todo, isDone } : todo
+                )
+            );
+
+            return { previousTodos };
         },
-        onError: () => {
+        onError: (_err, _variables, context) => {
+            if (context?.previousTodos) {
+                queryClient.setQueryData(["todos", user?.uid], context.previousTodos);
+            }
             toast.error("Failed to update todo");
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["todos", user?.uid] });
+            queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
         },
     });
 }
@@ -78,12 +118,27 @@ export function useDeleteTodo() {
 
     return useMutation({
         mutationFn: (todoId: string) => deleteTodo(user!.uid, todoId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["todos"] });
-            toast.success("Todo deleted");
+        onMutate: async (todoId) => {
+            await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
+            const previousTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+
+            queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) =>
+                old?.filter((todo) => todo.id !== todoId)
+            );
+
+            return { previousTodos };
         },
-        onError: () => {
+        onError: (_err, _variables, context) => {
+            if (context?.previousTodos) {
+                queryClient.setQueryData(["todos", user?.uid], context.previousTodos);
+            }
             toast.error("Failed to delete todo");
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["todos", user?.uid] });
+        },
+        onSuccess: () => {
+            toast.success("Todo deleted");
         },
     });
 }
