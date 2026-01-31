@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,7 +11,13 @@ import {
     Link as LinkIcon,
     Filter,
 } from "lucide-react";
-import { useTodos, useAddTodo, useToggleTodo, useDeleteTodo } from "@/hooks/useTodos";
+import {
+    useTodos,
+    useAddTodo,
+    useAddTodosBulk,
+    useToggleTodo,
+    useDeleteTodo,
+} from "@/hooks/useTodos";
 import { useGoals } from "@/hooks/useGoals";
 import {
     Button,
@@ -31,6 +37,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { Todo } from "@/types";
+import { buildGoalProgressMap } from "@/lib/goalProgress";
 
 const todoSchema = z.object({
     title: z.string().min(1, "Title is required").max(200, "Title is too long"),
@@ -43,10 +50,13 @@ type FilterType = "all" | "today" | "done" | "pending";
 export function TodosPage() {
     const [filter, setFilter] = useState<FilterType>("all");
     const [selectedGoalId, setSelectedGoalId] = useState<string>("");
+    const [addMode, setAddMode] = useState<"quick" | "bulk">("quick");
+    const [bulkText, setBulkText] = useState("");
 
     const { data: todos, isLoading: todosLoading } = useTodos();
     const { data: goals } = useGoals();
     const addTodo = useAddTodo();
+    const addTodosBulk = useAddTodosBulk();
     const toggleTodo = useToggleTodo();
     const deleteTodo = useDeleteTodo();
 
@@ -59,12 +69,27 @@ export function TodosPage() {
         resolver: zodResolver(todoSchema),
     });
 
-    const onSubmit = async (data: TodoForm) => {
-        await addTodo.mutateAsync({
+    const onSubmit = (data: TodoForm) => {
+        addTodo.mutate({
             title: data.title,
             goalId: selectedGoalId === "no-goal" || !selectedGoalId ? undefined : selectedGoalId,
         });
         reset();
+        setSelectedGoalId("");
+    };
+
+    const onBulkSubmit = () => {
+        const titles = bulkText
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+        if (titles.length === 0) return;
+
+        addTodosBulk.mutate({
+            titles,
+            goalId: selectedGoalId === "no-goal" || !selectedGoalId ? undefined : selectedGoalId,
+        });
+        setBulkText("");
         setSelectedGoalId("");
     };
 
@@ -91,8 +116,16 @@ export function TodosPage() {
         return goal?.title;
     };
 
+    const goalProgressMap = useMemo(() => {
+        if (!goals || !todos) return {};
+        return buildGoalProgressMap(goals, todos);
+    }, [goals, todos]);
+
     const TodoItem = ({ todo }: { todo: Todo }) => {
         const goalName = getGoalName(todo.goalId);
+        const isDeleting = deleteTodo.isPending && deleteTodo.variables === todo.id;
+        const isToggling =
+            toggleTodo.isPending && toggleTodo.variables?.todoId === todo.id;
 
         return (
             <div
@@ -106,10 +139,9 @@ export function TodosPage() {
                         toggleTodo.mutate({
                             todoId: todo.id,
                             isDone: !todo.isDone,
-                            goalId: todo.goalId,
                         })
                     }
-                    disabled={toggleTodo.isPending}
+                    disabled={isToggling}
                     className="mt-0.5 flex-shrink-0"
                 >
                     {todo.isDone ? (
@@ -148,7 +180,7 @@ export function TodosPage() {
                     size="icon"
                     className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all"
                     onClick={() => deleteTodo.mutate(todo.id)}
-                    disabled={deleteTodo.isPending}
+                    disabled={isDeleting}
                 >
                     <Trash2 className="w-4 h-4" />
                 </Button>
@@ -191,22 +223,71 @@ export function TodosPage() {
             {/* Quick Add Form */}
             <Card>
                 <CardContent className="p-4">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-                        <div className="flex gap-3">
-                            <Input
-                                placeholder="What needs to be done?"
-                                {...register("title")}
-                                className="flex-1"
-                            />
-                            <Button type="submit" disabled={addTodo.isPending}>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                variant={addMode === "quick" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setAddMode("quick")}
+                            >
+                                Quick add
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={addMode === "bulk" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setAddMode("bulk")}
+                            >
+                                Bulk add
                             </Button>
                         </div>
-                        {errors.title && (
-                            <p className="text-sm text-destructive">{errors.title.message}</p>
+                        {addMode === "quick" ? (
+                            <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+                                <div className="flex gap-3">
+                                    <Input
+                                        placeholder="What needs to be done?"
+                                        {...register("title")}
+                                        className="flex-1"
+                                    />
+                                    <Button type="submit" disabled={addTodo.isPending}>
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Add
+                                    </Button>
+                                </div>
+                                {errors.title && (
+                                    <p className="text-sm text-destructive">
+                                        {errors.title.message}
+                                    </p>
+                                )}
+                            </form>
+                        ) : (
+                            <div className="space-y-3">
+                                <textarea
+                                    className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    placeholder="Add one todo per line..."
+                                    value={bulkText}
+                                    onChange={(event) => setBulkText(event.target.value)}
+                                />
+                                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                    <span>
+                                        {bulkText
+                                            .split("\n")
+                                            .filter((line) => line.trim()).length}{" "}
+                                        items ready
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        onClick={onBulkSubmit}
+                                        disabled={addTodosBulk.isPending}
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Add all
+                                    </Button>
+                                </div>
+                            </div>
                         )}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <LinkIcon className="w-4 h-4 text-muted-foreground" />
                             <Select value={selectedGoalId} onValueChange={setSelectedGoalId}>
                                 <SelectTrigger className="w-64">
@@ -216,18 +297,19 @@ export function TodosPage() {
                                     <SelectItem value="no-goal">No goal</SelectItem>
                                     {goals?.map((goal) => (
                                         <SelectItem key={goal.id} value={goal.id}>
-                                            {goal.title} ({goal.currentPercent}%)
+                                            {goal.title} (
+                                            {goalProgressMap[goal.id]?.percent ?? 0}%)
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                             {selectedGoalId && (
-                                <span className="text-xs text-primary">
-                                    Completing this todo will add +5% to the goal
+                                <span className="text-xs text-muted-foreground">
+                                    Progress updates from linked todos
                                 </span>
                             )}
                         </div>
-                    </form>
+                    </div>
                 </CardContent>
             </Card>
 
