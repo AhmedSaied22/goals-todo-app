@@ -26,11 +26,13 @@ export function LoginPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)]" />
                 <div className="relative z-10 flex flex-col justify-center p-16 text-white">
                     <div className="flex items-center gap-4 mb-8">
-                        <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-xl flex items-center justify-center shadow-2xl">
-                            <Target className="w-8 h-8" />
-                        </div>
+                        <img 
+                            src="/milesto-logo.png" 
+                            alt="Milesto" 
+                            className="w-16 h-16 rounded-2xl shadow-2xl object-contain"
+                        />
                         <div>
-                            <h1 className="text-3xl font-bold">GoalMaster</h1>
+                            <h1 className="text-3xl font-bold">Milesto</h1>
                             <p className="text-white/80">Track. Achieve. Succeed.</p>
                         </div>
                     </div>
@@ -65,10 +67,12 @@ export function LoginPage() {
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="lg:hidden flex items-center gap-3 mb-12 justify-center">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-                            <Target className="w-6 h-6 text-white" />
-                        </div>
-                        <h1 className="text-2xl font-bold gradient-text">GoalMaster</h1>
+                        <img 
+                            src="/milesto-logo.png" 
+                            alt="Milesto" 
+                            className="w-12 h-12 rounded-xl shadow-lg object-contain"
+                        />
+                        <h1 className="text-2xl font-bold gradient-text">Milesto</h1>
                     </div>
 
                     <div className="space-y-6">
