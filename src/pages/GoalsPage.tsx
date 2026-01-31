@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Minus, Trash2, Target, Sparkles } from "lucide-react";
+import { Plus, Trash2, Target, Sparkles } from "lucide-react";
 import {
     useGoals,
     useAddGoal,
-    useUpdateGoalProgress,
     useDeleteGoal,
 } from "@/hooks/useGoals";
+import { useTodos } from "@/hooks/useTodos";
 import {
     Button,
     Card,
@@ -25,6 +25,7 @@ import {
     Skeleton,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { buildGoalProgressMap } from "@/lib/goalProgress";
 
 const goalSchema = z.object({
     title: z.string().min(1, "Title is required").max(100, "Title is too long"),
@@ -34,10 +35,15 @@ type GoalForm = z.infer<typeof goalSchema>;
 
 export function GoalsPage() {
     const [isOpen, setIsOpen] = useState(false);
-    const { data: goals, isLoading } = useGoals();
+    const { data: goals, isLoading: goalsLoading } = useGoals();
+    const { data: todos, isLoading: todosLoading } = useTodos();
     const addGoal = useAddGoal();
-    const updateProgress = useUpdateGoalProgress();
     const deleteGoal = useDeleteGoal();
+
+    const progressMap = useMemo(() => {
+        if (!goals || !todos) return {};
+        return buildGoalProgressMap(goals, todos);
+    }, [goals, todos]);
 
     const {
         register,
@@ -80,7 +86,7 @@ export function GoalsPage() {
         );
     };
 
-    if (isLoading) {
+    if (goalsLoading || todosLoading) {
         return (
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -151,12 +157,18 @@ export function GoalsPage() {
             {/* Goals Grid */}
             {goals && goals.length > 0 ? (
                 <div className="grid gap-4">
-                    {goals.map((goal) => (
+                    {goals.map((goal) => {
+                        const progress = progressMap[goal.id] ?? {
+                            total: 0,
+                            done: 0,
+                            percent: 0,
+                        };
+                        return (
                         <Card
                             key={goal.id}
                             className={cn(
                                 "transition-all duration-300",
-                                goal.currentPercent === 100 &&
+                                progress.percent === 100 &&
                                 "ring-2 ring-success/50 bg-success/5"
                             )}
                         >
@@ -166,12 +178,12 @@ export function GoalsPage() {
                                         <div
                                             className={cn(
                                                 "w-10 h-10 rounded-xl flex items-center justify-center",
-                                                goal.currentPercent === 100
+                                                progress.percent === 100
                                                     ? "bg-success/10"
                                                     : "bg-primary/10"
                                             )}
                                         >
-                                            {goal.currentPercent === 100 ? (
+                                            {progress.percent === 100 ? (
                                                 <Sparkles className="w-5 h-5 text-success" />
                                             ) : (
                                                 <Target className="w-5 h-5 text-primary" />
@@ -181,7 +193,7 @@ export function GoalsPage() {
                                             <h3 className="font-semibold text-foreground">
                                                 {goal.title}
                                             </h3>
-                                            {getStatusBadge(goal.currentPercent)}
+                                            {getStatusBadge(progress.percent)}
                                         </div>
                                     </div>
                                     <Button
@@ -189,7 +201,9 @@ export function GoalsPage() {
                                         size="icon"
                                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                         onClick={() => deleteGoal.mutate(goal.id)}
-                                        disabled={deleteGoal.isPending}
+                                        disabled={
+                                            deleteGoal.isPending && deleteGoal.variables === goal.id
+                                        }
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -203,67 +217,24 @@ export function GoalsPage() {
                                         <span
                                             className={cn(
                                                 "text-lg font-bold",
-                                                getProgressColor(goal.currentPercent)
+                                                getProgressColor(progress.percent)
                                             )}
                                         >
-                                            {goal.currentPercent}%
+                                            {progress.percent}%
                                         </span>
                                     </div>
-                                    <Progress value={goal.currentPercent} />
-                                    <div className="flex items-center gap-2 pt-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                updateProgress.mutate({
-                                                    goalId: goal.id,
-                                                    newPercent: goal.currentPercent - 5,
-                                                })
-                                            }
-                                            disabled={
-                                                goal.currentPercent <= 0 || updateProgress.isPending
-                                            }
-                                        >
-                                            <Minus className="w-4 h-4 mr-1" />
-                                            5%
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                updateProgress.mutate({
-                                                    goalId: goal.id,
-                                                    newPercent: goal.currentPercent + 5,
-                                                })
-                                            }
-                                            disabled={
-                                                goal.currentPercent >= 100 || updateProgress.isPending
-                                            }
-                                        >
-                                            <Plus className="w-4 h-4 mr-1" />
-                                            5%
-                                        </Button>
-                                        {goal.currentPercent < 100 && (
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="ml-auto"
-                                                onClick={() =>
-                                                    updateProgress.mutate({
-                                                        goalId: goal.id,
-                                                        newPercent: 100,
-                                                    })
-                                                }
-                                                disabled={updateProgress.isPending}
-                                            >
-                                                Mark Complete
-                                            </Button>
-                                        )}
+                                    <Progress value={progress.percent} />
+                                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
+                                        <span>
+                                            {progress.done}/{progress.total} todos completed
+                                        </span>
+                                        <span>Progress updates from linked todos</span>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : (
                 <Card className="p-12">
