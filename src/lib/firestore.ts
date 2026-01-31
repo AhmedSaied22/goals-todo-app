@@ -7,12 +7,13 @@ import {
     deleteDoc,
     query,
     orderBy,
+    where,
     serverTimestamp,
     writeBatch,
     type DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Goal, Todo } from "@/types";
+import type { Activity, DailyLog, Goal, Todo } from "@/types";
 
 // Goals CRUD
 export async function getGoals(uid: string): Promise<Goal[]> {
@@ -124,4 +125,62 @@ export async function toggleTodo(
 export async function deleteTodo(uid: string, todoId: string): Promise<void> {
     const todoRef = doc(db, "users", uid, "todos", todoId);
     await deleteDoc(todoRef);
+}
+
+// Daily Tracker CRUD
+export async function getActivities(uid: string): Promise<Activity[]> {
+    const activitiesRef = collection(db, "users", uid, "activities");
+    const q = query(activitiesRef, orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+    })) as Activity[];
+}
+
+export async function getDailyLogs(
+    uid: string,
+    startDate: string,
+    endDate: string
+): Promise<DailyLog[]> {
+    const logsRef = collection(db, "users", uid, "dailyLogs");
+    const q = query(
+        logsRef,
+        where("date", ">=", startDate),
+        where("date", "<=", endDate),
+        orderBy("date", "asc")
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+    })) as DailyLog[];
+}
+
+export async function addDailyLog(
+    uid: string,
+    payload: Omit<DailyLog, "id" | "createdAt">
+): Promise<string> {
+    const logsRef = collection(db, "users", uid, "dailyLogs");
+    const docRef = await addDoc(logsRef, {
+        ...payload,
+        createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+}
+
+export async function updateDailyLog(
+    uid: string,
+    logId: string,
+    updates: Partial<Pick<DailyLog, "durationMinutes" | "notes" | "date">>
+): Promise<void> {
+    const logRef = doc(db, "users", uid, "dailyLogs", logId);
+    await updateDoc(logRef, updates);
+}
+
+export async function deleteDailyLog(uid: string, logId: string): Promise<void> {
+    const logRef = doc(db, "users", uid, "dailyLogs", logId);
+    await deleteDoc(logRef);
 }
