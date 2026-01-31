@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { LoginPage, DashboardPage, GoalsPage, TodosPage } from "@/pages";
+import { LoginPage, DashboardPage, GoalsPage, TodosPage, DailyTrackerPage } from "@/pages";
 
 export const router = createBrowserRouter([
     {
@@ -25,6 +25,10 @@ export const router = createBrowserRouter([
                     {
                         path: "/todos",
                         element: <TodosPage />,
+                    },
+                    {
+                        path: "/daily",
+                        element: <DailyTrackerPage />,
                     },
                     {
                         path: "/",

@@ -4,6 +4,7 @@ import {
     LayoutDashboard,
     Target,
     CheckSquare,
+    CalendarDays,
     Menu,
     Moon,
     Sun,
@@ -19,6 +20,7 @@ const navItems = [
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/goals", icon: Target, label: "Goals" },
     { to: "/todos", icon: CheckSquare, label: "Todos" },
+    { to: "/daily", icon: CalendarDays, label: "Daily Tracker" },
 ];
 
 function NavContent({ onClose }: { onClose?: () => void }) {
