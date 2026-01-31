@@ -14,6 +14,7 @@ import { Target, CheckSquare, TrendingUp, Trophy } from "lucide-react";
 import { useGoals } from "@/hooks/useGoals";
 import { useTodos } from "@/hooks/useTodos";
 import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@/components/ui";
+import { buildGoalProgressMap } from "@/lib/goalProgress";
 
 const CHART_COLORS = {
     notStarted: "#94a3b8",
@@ -25,15 +26,23 @@ export function DashboardPage() {
     const { data: goals, isLoading: goalsLoading } = useGoals();
     const { data: todos, isLoading: todosLoading } = useTodos();
 
+    const goalProgressMap = useMemo(() => {
+        if (!goals || !todos) return {};
+        return buildGoalProgressMap(goals, todos);
+    }, [goals, todos]);
+
     // Calculate stats
     const stats = useMemo(() => {
         if (!goals || !todos) return null;
 
-        const notStarted = goals.filter((g) => g.currentPercent === 0).length;
-        const inProgress = goals.filter(
-            (g) => g.currentPercent > 0 && g.currentPercent < 100
+        const progressValues = goals.map(
+            (goal) => goalProgressMap[goal.id]?.percent ?? 0
+        );
+        const notStarted = progressValues.filter((percent) => percent === 0).length;
+        const inProgress = progressValues.filter(
+            (percent) => percent > 0 && percent < 100
         ).length;
-        const completed = goals.filter((g) => g.currentPercent === 100).length;
+        const completed = progressValues.filter((percent) => percent === 100).length;
 
         const pendingTodos = todos.filter((t) => !t.isDone).length;
         const completedTodos = todos.filter((t) => t.isDone).length;
@@ -41,7 +50,7 @@ export function DashboardPage() {
         const avgProgress =
             goals.length > 0
                 ? Math.round(
-                    goals.reduce((sum, g) => sum + g.currentPercent, 0) / goals.length
+                    progressValues.reduce((sum, percent) => sum + percent, 0) / goals.length
                 )
                 : 0;
 
@@ -55,7 +64,7 @@ export function DashboardPage() {
             completedTodos,
             avgProgress,
         };
-    }, [goals, todos]);
+    }, [goals, todos, goalProgressMap]);
 
     // Pie chart data
     const pieData = useMemo(() => {
@@ -71,13 +80,17 @@ export function DashboardPage() {
     const barData = useMemo(() => {
         if (!goals) return [];
         return [...goals]
-            .sort((a, b) => b.currentPercent - a.currentPercent)
+            .sort(
+                (a, b) =>
+                    (goalProgressMap[b.id]?.percent ?? 0) -
+                    (goalProgressMap[a.id]?.percent ?? 0)
+            )
             .slice(0, 5)
             .map((g) => ({
                 name: g.title.length > 15 ? g.title.substring(0, 15) + "..." : g.title,
-                progress: g.currentPercent,
+                progress: goalProgressMap[g.id]?.percent ?? 0,
             }));
-    }, [goals]);
+    }, [goals, goalProgressMap]);
 
     const isLoading = goalsLoading || todosLoading;
 

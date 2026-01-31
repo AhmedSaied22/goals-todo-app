@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     getTodos,
     addTodo,
+    addTodosBulk,
     toggleTodo,
     deleteTodo,
 } from "@/lib/firestore";
-import { updateGoalProgress, getGoals } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -19,6 +19,15 @@ export function useTodos() {
         queryKey: ["todos", user?.uid],
         queryFn: () => getTodos(user!.uid),
         enabled: !!user,
+        staleTime: 15_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        select: (todos) =>
+            todos.map((todo) => ({
+                ...todo,
+                isDone: Boolean(todo.isDone),
+            })),
     });
 }
 
@@ -32,10 +41,11 @@ export function useAddTodo() {
         onMutate: async ({ title, goalId }) => {
             await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
             const previousTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+            const tempId = crypto.randomUUID();
 
             queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) => {
                 const newTodo: Todo = {
-                    id: Math.random().toString(), // Temp ID
+                    id: tempId, // Temp ID
                     title,
                     isDone: false,
                     goalId,
@@ -44,7 +54,7 @@ export function useAddTodo() {
                 return old ? [newTodo, ...old] : [newTodo];
             });
 
-            return { previousTodos };
+            return { previousTodos, tempId };
         },
         onError: (_err, _variables, context) => {
             if (context?.previousTodos) {
@@ -52,11 +62,65 @@ export function useAddTodo() {
             }
             toast.error("Failed to add todo");
         },
+        onSuccess: (todoId, _variables, context) => {
+            if (!context?.tempId) return;
+            queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) =>
+                old?.map((todo) => (todo.id === context.tempId ? { ...todo, id: todoId } : todo))
+            );
+            toast.success("Todo added!");
+        },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["todos", user?.uid] });
         },
-        onSuccess: () => {
-            toast.success("Todo added!");
+    });
+}
+
+export function useAddTodosBulk() {
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ titles, goalId }: { titles: string[]; goalId?: string }) =>
+            addTodosBulk(user!.uid, titles, goalId),
+        onMutate: async ({ titles, goalId }) => {
+            await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
+            const previousTodos = queryClient.getQueryData<Todo[]>(["todos", user?.uid]);
+            const now = Timestamp.now();
+            const tempIds = titles.map(() => crypto.randomUUID());
+
+            queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) => {
+                const newTodos = titles.map((title, index) => ({
+                    id: tempIds[index],
+                    title,
+                    isDone: false,
+                    goalId,
+                    createdAt: now,
+                }));
+                return old ? [...newTodos, ...old] : newTodos;
+            });
+
+            return { previousTodos, tempIds };
+        },
+        onError: (_err, _variables, context) => {
+            if (context?.previousTodos) {
+                queryClient.setQueryData(["todos", user?.uid], context.previousTodos);
+            }
+            toast.error("Failed to add todos");
+        },
+        onSuccess: (todoIds, _variables, context) => {
+            if (!context?.tempIds) return;
+            queryClient.setQueryData<Todo[]>(["todos", user?.uid], (old) => {
+                if (!old) return old;
+                return old.map((todo) => {
+                    const tempIndex = context.tempIds.indexOf(todo.id);
+                    if (tempIndex === -1) return todo;
+                    return { ...todo, id: todoIds[tempIndex] };
+                });
+            });
+            toast.success("Todos added!");
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["todos", user?.uid] });
         },
     });
 }
@@ -69,23 +133,11 @@ export function useToggleTodo() {
         mutationFn: async ({
             todoId,
             isDone,
-            goalId,
         }: {
             todoId: string;
             isDone: boolean;
-            goalId?: string;
         }) => {
             await toggleTodo(user!.uid, todoId, isDone);
-
-            // If linked to a goal, update the goal progress
-            if (goalId) {
-                const goals = await getGoals(user!.uid);
-                const goal = goals.find((g) => g.id === goalId);
-                if (goal) {
-                    const delta = isDone ? 5 : -5;
-                    await updateGoalProgress(user!.uid, goalId, goal.currentPercent + delta);
-                }
-            }
         },
         onMutate: async ({ todoId, isDone }) => {
             await queryClient.cancelQueries({ queryKey: ["todos", user?.uid] });
@@ -107,7 +159,6 @@ export function useToggleTodo() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["todos", user?.uid] });
-            queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
         },
     });
 }

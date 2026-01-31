@@ -8,6 +8,7 @@ import {
     query,
     orderBy,
     serverTimestamp,
+    writeBatch,
     type DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -80,6 +81,35 @@ export async function addTodo(
 
     const docRef = await addDoc(todosRef, todoData);
     return docRef.id;
+}
+
+export async function addTodosBulk(
+    uid: string,
+    titles: string[],
+    goalId?: string
+): Promise<string[]> {
+    const todosRef = collection(db, "users", uid, "todos");
+    const batch = writeBatch(db);
+    const ids: string[] = [];
+
+    titles.forEach((title) => {
+        const todoRef = doc(todosRef);
+        const todoData: DocumentData = {
+            title,
+            isDone: false,
+            createdAt: serverTimestamp(),
+        };
+
+        if (goalId) {
+            todoData.goalId = goalId;
+        }
+
+        batch.set(todoRef, todoData);
+        ids.push(todoRef.id);
+    });
+
+    await batch.commit();
+    return ids;
 }
 
 export async function toggleTodo(

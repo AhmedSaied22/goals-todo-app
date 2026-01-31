@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     getGoals,
     addGoal,
-    updateGoalProgress,
     deleteGoal,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +17,17 @@ export function useGoals() {
         queryKey: ["goals", user?.uid],
         queryFn: () => getGoals(user!.uid),
         enabled: !!user,
+        staleTime: 15_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        select: (goals) =>
+            goals.map((goal) => ({
+                ...goal,
+                currentPercent: Number.isFinite(goal.currentPercent)
+                    ? goal.currentPercent
+                    : 0,
+            })),
     });
 }
 
@@ -54,37 +64,6 @@ export function useAddGoal() {
         },
         onSuccess: () => {
             toast.success("Goal created successfully!");
-        },
-    });
-}
-
-export function useUpdateGoalProgress() {
-    const { user } = useAuth();
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: ({ goalId, newPercent }: { goalId: string; newPercent: number }) =>
-            updateGoalProgress(user!.uid, goalId, newPercent),
-        onMutate: async ({ goalId, newPercent }) => {
-            await queryClient.cancelQueries({ queryKey: ["goals", user?.uid] });
-            const previousGoals = queryClient.getQueryData<Goal[]>(["goals", user?.uid]);
-
-            queryClient.setQueryData<Goal[]>(["goals", user?.uid], (old) =>
-                old?.map((goal) =>
-                    goal.id === goalId ? { ...goal, currentPercent: newPercent } : goal
-                )
-            );
-
-            return { previousGoals };
-        },
-        onError: (_err, _variables, context) => {
-            if (context?.previousGoals) {
-                queryClient.setQueryData(["goals", user?.uid], context.previousGoals);
-            }
-            toast.error("Failed to update progress");
-        },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ["goals", user?.uid] });
         },
     });
 }
